@@ -12,22 +12,27 @@ products <- read_csv("../Input/products.csv")
 head(order_products_prior)
 
 ##DATA MUNGING
-
+head(order_products_prior)
 # Get the Shopping baskets
 order_baskets <- order_products_prior %>%
                   inner_join(products,by="product_id") %>%
                   group_by(order_id) %>%
                   summarise(basket=as.vector(list(product_name)))
+head(order_baskets$basket[1])
+head(products)
+is.data.frame(order_baskets)
 # Compute Transactions
 orderTransactions <- as(order_baskets$basket,"transactions")
 
 # See first 5 Transactions
 inspect(orderTransactions[1:2,])
+summary(orderTransactions)
+#You can examine the distribution of transaction sizes
 
-# count based product contigency matrix 
-orderCM <- crossTable(orderTransactions[1:2,], measure="count", sort=TRUE) 
+basketSizes<-size(orderTransactions)
+summary(basketSizes)
 
-# Generate rules for Apriori
+# 1. Generate rules for Apriori (Frequent Items)
 ## With mining High-dimensional data:almost every event is rare.
 # Keep support quite low.
 support<- 0.01
@@ -35,7 +40,10 @@ itemSets <- apriori(orderTransactions,
                     parameter = list(target="frequent itemsets",supp=support,minlen=2),
                     control = list(verbose=FALSE))
 inspect(itemSets)
+summary(itemSets)
+
 sets_order_supp <- DATAFRAME(sort(itemSets,by="support",decreasing = F))
+
 #1 Generate a Barplot of the rules
 x11()
 par(mar=c(5,18,2,2)+.1)
@@ -47,54 +55,88 @@ mtext(paste("Support:",support), padj = .8)
 # shown interest in multiple products. So we restrict the dataset to
 # customers who have expressed interest in at least two products.
 #11.
-product_baskets <- orderTransactions[basketSizes>1]
+product_baskets <- orderTransactions[basketSizes > 1 ]
 #Let's try restricting the itemsets that we'll consider to those 
 #that are supported by at least 10000 baskets.
-#This leads to a minimum support of: 0.0033 (10k divided by 3million)
-# conf of 0.01 (rule is correct 10% of time)
+#This leads to a minimum support of: 0.0005 (1.5k divided by 3million)
+# conf of 0.01 (rule is correct 1% of time)
 
 #12. Generate new rules
-rules <- apriori(product_baskets,
-                 parameter = list(supp=0.003269976,conf=0.01,maxlen=3),
-                 control = list(verbose = FALSE))
-plot(rules)
-inspect(rules)
+  rules <- apriori(product_baskets,
+                   parameter = list(supp=0.0005,conf=0.01,minlen=2),
+                   control = list(verbose = FALSE))
+summary(rules)
+inspect(rules[1:4])
 #Removing redundant rules
 nonRedundantRules <- rules[unique(as.vector(is.subset(rules, rules)))]
-plot(nonRedundantRules)
-inspect(nonRedundantRules)
 
-#13. Inspect the rules
+# Create a Scatter Plot for rules
+x11()
+plot(nonRedundantRules)
+inspect(nonRedundantRules[1:10])
+summary(nonRedundantRules)
+
+## Matrix shading
+## --------------
+## The following techniques work better with fewer rules
+subrules <- sample(nonRedundantRules, 15)
+subrules
+## 2D matrix with shading
+#plot(subrules, method="matrix")
+## 3D matrix
+#plot(subrules, method="matrix", engine = "3d")
+## Matrix with two measures
+plot(subrules, method="matrix", shading=c("lift", "confidence"))
+
+## Parallel coordinates plot
+## -------------------------
+inspect(nonRedundantRules[1:5])
+subrules <- sample(nonRedundantRules, 20)
+?sample
+inspect(subrules)
+x11()
+plot(subrules, method="paracoord")
+#plot(subrules2, method="paracoord", reorder=TRUE)
+
+
+# Inspect the rules
 inspect(sort(nonRedundantRules, by="lift")[1:5])
 inspect(sort(rules, by="confidence")[1:5])
 
 #Set support to be 0.001(1 in 1000) and conf of 0.25 (rule is correct 25% of time)
 # Mining with different parameters
-groceryRules <- apriori(orderTransactions,
-                        parameter = list(support=0.001,confidence=0.25,minlen=2))
-plot(groceryRules)
-inspect(groceryRules)
+#groceryRules <- apriori(orderTransactions, parameter = list(support=0.001,confidence=0.25,minlen=2))
+#plot(groceryRules)
+#inspect(groceryRules)
 
 #Removing redundant rules
-groceryRules <- rules[unique(as.vector(is.subset(groceryRules, groceryRules)))]
-plot(groceryRules)
-inspect(groceryRules)
+#groceryRules <- rules[unique(as.vector(is.subset(groceryRules, groceryRules)))]
+#plot(groceryRules)
+#inspect(groceryRules)
 
 #Inspect the new Rules
-inspect(sort(groceryRules, by="lift")[1:5])
-inspect(sort(groceryRules, by="confidence")[1:5])
+#inspect(sort(groceryRules, by="lift")[1:5])
+#inspect(sort(groceryRules, by="confidence")[1:5])
 
 #Finding rules related to given items
 #Rules that lead to buying Bananas (Items that lead to buying bananas)
-# Suport 0.001 means 1 in 1000 Conf 0.08 means rule is correct 8% of time
-bananaRules <- apriori (orderTransactions, 
-                        parameter=list (supp=0.001,conf = 0.08,minlen=2), 
-                        appearance = list (default="lhs",rhs="Banana"), 
-                        control = list (verbose=F))
-plot(bananaRules)
-inspect(bananaRules)
-#Remove redundant rules
+# Suport 0.0005 means 1 in 2000 Conf 0.08 means rule is correct 5% of time
+
+rules<-apriori(orderTransactions, parameter=list(supp=0.0005,conf = 0.05), 
+               appearance = list(default="lhs",rhs="Banana"),
+               control = list(verbose=F))
+
 bananaRules <- bananaRules[unique(as.vector(is.subset(bananaRules, bananaRules)))]
+
+bananaRules<-sort(bananaRules, decreasing=TRUE,by="confidence")
+inspect(bananaRules[1:10])
+#Remove redundant rules
+
+
+#Plot graph-based visualisation:
+subrules2 <- sample(sort(bananaRules, by="lift"), 10)
+x11()
+plot(subrules2, method="graph",control=list(type="items",main=""))
 # See the rules
 rules_conf <- sort (bananaRules, by="confidence", decreasing=TRUE) # 'high-confidence' rules.
 inspect(head(rules_conf))
@@ -109,13 +151,15 @@ rulesAfterBanana <- apriori (orderTransactions,
                              parameter=list (supp=0.001,conf = 0.05,minlen=2), 
                              appearance = list(default="rhs",lhs="Banana"), 
                              control = list (verbose=F))
-plot(rulesAfterBanana)
-inspect(rulesAfterBanana)
+plot(rulesAfterBanana, method="graph",control=list(type="items",main=""))
+inspect(rulesAfterBanana[1:5])
+rules_lift <- sort (rulesAfterBanana, by="lift", decreasing=TRUE) # 'high-lift' rules.
+inspect(rules_lift)
 
 ##TAKING SUBSETS OF RULES
 #Need to market YOgurt
 groceryRules <- apriori(orderTransactions,
-                        parameter = list(support=0.001,confidence=0.25,minlen=2))
+                        parameter = list(support=0.0005,confidence=0.25,minlen=2))
 
 yogurtItemRules <- subset(groceryRules, items %pin% "Yogurt")
 summary(yogurtItemRules)

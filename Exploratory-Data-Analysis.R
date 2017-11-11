@@ -7,8 +7,8 @@ library(ggplot2)        # Create Elegant Data Visualisations
 library(gridExtra)      # To arrange ggplots in grids
 library(scales)         # To adjust numeric scales in ggplots
 library(dplyr)          # For Data manupulation
-
-
+getwd()
+setwd("C:/Users/Saurabh/Desktop/Instacart-Data-Mining/")
 # Updating all the available packages!
 
 #install.packages(
@@ -219,7 +219,7 @@ order_products_train %>%
 ## 7. Top 10 aisles
 
 aisles$aisle_id = as.character(aisles$aisle_id)
-departments$department_id = as.character(departments$department_id)
+departments$department_id = as.integer(departments$department_id)
 
 x11()
 
